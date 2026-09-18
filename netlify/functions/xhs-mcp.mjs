@@ -922,6 +922,12 @@ const XHSLite = (() => {
       data = { success: false, msg: `HTTP ${resp.status} returned a non-JSON response` };
     }
     if (!resp.ok) {
+      if (resp.status === 461) {
+        let bodyText = '';
+        try { bodyText = (typeof data === 'object') ? JSON.stringify(data).slice(0, 300) : String(data).slice(0, 300); } catch { bodyText = 'unserializable'; }
+        const logHeader = resp.headers.get('x-xhs-log') || resp.headers.get('shunt') || '';
+        console.log(`[H-EVIDENCE] HTTP 461 body=${bodyText} | x-xhs-log=${logHeader}`);
+      }
       return { ...data, success: false, http_status: resp.status };
     }
     return data;
@@ -1368,6 +1374,21 @@ const XHSLite = (() => {
       filters: [{ tags: [st], type: 'sort_type' }, { tags: ['不限'], type: 'filter_note_type' }, { tags: ['不限'], type: 'filter_note_time' }, { tags: ['不限'], type: 'filter_note_range' }, { tags: ['不限'], type: 'filter_pos_distance' }],
       geo: '', image_formats: IMG_FORMATS };
     const uri = '/api/sns/web/v1/search/notes';
+    // H版：矩阵前先跑基线探测，区分"cookie 失效"与"search 专属拦截"
+    try {
+      const baseline = await signedGet(apiBase, '/api/sns/web/v2/user/me', null, cookieStr, ck);
+      const meUid = baseline?.data?.user_id || baseline?.data?.userId || (baseline?.data && baseline.data.guest === false) ? 'OK' : 'FAIL';
+      const meUid2 = baseline?.data?.user_id || baseline?.data?.userId || '';
+      console.log(`[H-BASELINE] user/me -> http=${baseline?.http_status ?? 'N/A'} success=${!!baseline?.success} uid=${meUid2 || 'EMPTY'} logged_in=${baseline?.data ? (baseline.data.guest === false ? 'true' : 'unknown') : 'n/a'}`);
+    } catch (e) {
+      console.log(`[H-BASELINE] user/me fetch_error: ${e?.message || e}`);
+    }
+    try {
+      const hf = await signedPost(apiBase, '/api/sns/web/v1/homefeed', { category: 'homefeed_recommend', cursor_score: '', note_index: 0, refresh_type: 1, image_formats: IMG_FORMATS, need_filter_image: false }, cookieStr, ck);
+      console.log(`[H-BASELINE] homefeed -> http=${hf?.http_status ?? 'N/A'} success=${!!hf?.success} items=${(hf?.data?.items || []).length}`);
+    } catch (e) {
+      console.log(`[H-BASELINE] homefeed fetch_error: ${e?.message || e}`);
+    }
     // G版自诊断：一次调用遍历策略矩阵，首个成功短路；每次结果写入日志形成决策矩阵
     const strategies = [
       { tag: 'S1_x443+RAP(F版现状)', xs: null, xsc: null, useXrap: true },
