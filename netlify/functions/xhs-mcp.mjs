@@ -111,7 +111,7 @@ const XHSLite = (() => {
   const XYW_AES_KEY = '7cc4adla5ay0701v';
   const XYW_AES_IV = '4uzjr7mbsibcaldp';
   const XYW_ENV_FLAGS = '0|0|0|1|0|0|1|0|0|0|1|0|0|0|0|1|0|0|1';
-  const SIGNATURE_DATA_TEMPLATE = { x0: '4.3.5', x1: 'xhs-pc-web', x2: 'Windows', x3: '', x4: 'object' };
+  const SIGNATURE_DATA_TEMPLATE = { x0: '4.4.3', x1: 'xhs-pc-web', x2: 'Windows', x3: '', x4: '' }; // 2026-09-13 风控升级：版本号过期会被拒（xhshow issue #110 验证）
   const SIGNATURE_XSCOMMON_TEMPLATE = {
     s0: 5, s1: '', x0: '1', x1: '4.3.5', x2: 'Windows', x3: 'xhs-pc-web', x4: '4.86.0',
     x5: '', x6: '', x7: '', x8: '', x9: -596800761, x10: 0, x11: 'normal',
