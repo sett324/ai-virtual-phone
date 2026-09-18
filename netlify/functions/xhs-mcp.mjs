@@ -1364,6 +1364,7 @@ const XHSLite = (() => {
       filters: [{ tags: [st], type: 'sort_type' }, { tags: ['不限'], type: 'filter_note_type' }, { tags: ['不限'], type: 'filter_note_time' }, { tags: ['不限'], type: 'filter_note_range' }, { tags: ['不限'], type: 'filter_pos_distance' }],
       geo: '', image_formats: IMG_FORMATS };
     const r = await signedPost(apiBase, '/api/sns/web/v1/search/notes', payload, cookieStr, ck, {}, true); // RAP白名单：search必须带x-rap-param，Netlify环境下缺失会被风控
+    if (!r?.success) console.error('[xhs_search] failed:', JSON.stringify({ http_status: r?.http_status, msg: r?.msg, body: r }).slice(0, 800));
     const items = (r?.data?.items || []).filter((it) => it.id && (it.note_card || it.model_type === 'note'));
     return { feeds: items.map(normItem), success: !!r?.success, msg: r?.msg, raw_error: r?.success ? undefined : r };
   }
