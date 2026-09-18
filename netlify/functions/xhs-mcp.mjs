@@ -112,6 +112,8 @@ const XHSLite = (() => {
   const XYW_AES_IV = '4uzjr7mbsibcaldp';
   const XYW_ENV_FLAGS = '0|0|0|1|0|0|1|0|0|0|1|0|0|0|0|1|0|0|1';
   const SIGNATURE_DATA_TEMPLATE = { x0: '4.4.3', x1: 'xhs-pc-web', x2: 'Windows', x3: '', x4: '' }; // 2026-09-13 风控升级：版本号过期会被拒（xhshow issue #110 验证）
+  const LEGACY_SIGNATURE_DATA_TEMPLATE = { x0: '4.3.5', x1: 'xhs-pc-web', x2: 'Windows', x3: '', x4: '' }; // A版原味：9-13风控升级前可用
+  const SIGNATURE_XSCOMMON_BUMPED = { ...SIGNATURE_XSCOMMON_TEMPLATE, x1: '4.4.3' }; // 与 x-s 4.4.3 对齐的 x-s-common 指纹
   const SIGNATURE_XSCOMMON_TEMPLATE = {
     s0: 5, s1: '', x0: '1', x1: '4.3.5', x2: 'Windows', x3: 'xhs-pc-web', x4: '4.86.0',
     x5: '', x6: '', x7: '', x8: '', x9: -596800761, x10: 0, x11: 'normal',
@@ -341,7 +343,7 @@ const XHSLite = (() => {
     return out;
   }
 
-  function signXs(method, uri, a1Value, { appId = 'xhs-pc-web', payload = null, timestampSec = null } = {}) {
+  function signXs(method, uri, a1Value, { appId = 'xhs-pc-web', payload = null, timestampSec = null, xsTemplate = null } = {}) {
     uri = extractUri(uri);
     if (timestampSec === null) timestampSec = Date.now() / 1000;
     const contentString = buildContentString(method, uri, payload);
@@ -349,7 +351,7 @@ const XHSLite = (() => {
     const mValue = method.toUpperCase() === 'GET' ? dValue : md5Hex(uri);
     const xorResult = xorTransform(buildPayloadArray(dValue, mValue, a1Value, appId, contentString, timestampSec));
     const x3sig = encodeX3(xorResult.slice(0, PAYLOAD_LENGTH));
-    return XYS_PREFIX + encodeCustomStr(jsonCompact({ ...SIGNATURE_DATA_TEMPLATE, x3: X3_PREFIX + x3sig }));
+    return XYS_PREFIX + encodeCustomStr(jsonCompact({ ...(xsTemplate || SIGNATURE_DATA_TEMPLATE), x3: X3_PREFIX + x3sig }));
   }
 
   function randomUint32() {
@@ -816,10 +818,10 @@ const XHSLite = (() => {
     };
   }
 
-  function signXsCommon(cookieDict, fingerprint) {
+  function signXsCommon(cookieDict, fingerprint, xsCommonTemplate = null) {
     const fp = fingerprint || generateFingerprint(cookieDict);
     const b1 = generateB1(fp);
-    return encodeCustomStr(jsonCompact({ ...SIGNATURE_XSCOMMON_TEMPLATE, x5: cookieDict.a1, x8: b1, x9: crc32JsInt(b1) }));
+    return encodeCustomStr(jsonCompact({ ...(xsCommonTemplate || SIGNATURE_XSCOMMON_TEMPLATE), x5: cookieDict.a1, x8: b1, x9: crc32JsInt(b1) }));
   }
 
   const HEX_CHARS = 'abcdef0123456789';
@@ -835,16 +837,18 @@ const XHSLite = (() => {
     payload = null,
     timestampSec = null,
     signFormat = 'xys',
+    xsTemplate = null,
+    xsCommonTemplate = null,
   } = {}) {
     if (timestampSec === null) timestampSec = Date.now() / 1000;
     const m = method.toUpperCase();
     const requestData = m === 'GET' ? params : payload;
     const xSignature = signFormat === 'xyw'
       ? await signXyw(m, uri, cookieDict.a1, { payload: requestData, timestampSec })
-      : signXs(m, uri, cookieDict.a1, { payload: requestData, timestampSec });
+      : signXs(m, uri, cookieDict.a1, { payload: requestData, timestampSec, xsTemplate });
     return {
       'x-s': xSignature,
-      'x-s-common': signXsCommon(cookieDict),
+      'x-s-common': signXsCommon(cookieDict, null, xsCommonTemplate),
       'x-t': String(Math.floor(timestampSec * 1000)),
       'x-b3-traceid': b3TraceId(),
       'x-xray-traceid': xrayTraceId(Math.floor(timestampSec * 1000)),
@@ -1363,10 +1367,40 @@ const XHSLite = (() => {
     const payload = { keyword, page, page_size: 20, search_id: genSearchId(), sort: st, note_type: 0, ext_flags: [],
       filters: [{ tags: [st], type: 'sort_type' }, { tags: ['不限'], type: 'filter_note_type' }, { tags: ['不限'], type: 'filter_note_time' }, { tags: ['不限'], type: 'filter_note_range' }, { tags: ['不限'], type: 'filter_pos_distance' }],
       geo: '', image_formats: IMG_FORMATS };
-    const r = await signedPost(apiBase, '/api/sns/web/v1/search/notes', payload, cookieStr, ck, {}, true); // RAP白名单：search必须带x-rap-param，Netlify环境下缺失会被风控
-    if (!r?.success) console.error('[xhs_search] failed:', JSON.stringify({ http_status: r?.http_status, msg: r?.msg, body: r }).slice(0, 800));
-    const items = (r?.data?.items || []).filter((it) => it.id && (it.note_card || it.model_type === 'note'));
-    return { feeds: items.map(normItem), success: !!r?.success, msg: r?.msg, raw_error: r?.success ? undefined : r };
+    const uri = '/api/sns/web/v1/search/notes';
+    // G版自诊断：一次调用遍历策略矩阵，首个成功短路；每次结果写入日志形成决策矩阵
+    const strategies = [
+      { tag: 'S1_x443+RAP(F版现状)', xs: null, xsc: null, useXrap: true },
+      { tag: 'S2_x443+noRAP', xs: null, xsc: null, useXrap: false },
+      { tag: 'S3_旧x435+noRAP(A版原味)', xs: 'legacy', xsc: null, useXrap: false },
+      { tag: 'S4_x443+xsc443+noRAP', xs: null, xsc: 'bumped', useXrap: false },
+    ];
+    let lastR = null;
+    for (let i = 0; i < strategies.length; i++) {
+      const stg = strategies[i];
+      const sig = await signHeaders('POST', uri, ck, {
+        payload,
+        xsTemplate: stg.xs === 'legacy' ? LEGACY_SIGNATURE_DATA_TEMPLATE : null,
+        xsCommonTemplate: stg.xsc === 'bumped' ? SIGNATURE_XSCOMMON_BUMPED : null,
+      });
+      const xrapHeader = stg.useXrap ? { 'x-rap-param': await xRapParam(`//${new URL(apiBase).host}${uri}`, payload) } : {};
+      let r = null;
+      try {
+        const resp = await fetch(apiBase + uri, { method: 'POST', headers: { ...baseHeaders(cookieStr, apiBase), ...sig, ...xrapHeader }, body: JSON.stringify(payload) });
+        r = await readJsonResponse(resp);
+      } catch (e) {
+        r = { success: false, msg: 'fetch_error: ' + (e?.message || String(e)) };
+      }
+      lastR = r;
+      console.log(`[G-MATRIX] ${stg.tag} -> http_status=${r?.http_status ?? 'N/A'} success=${!!r?.success} msg=${r?.msg ?? ''}`);
+      if (r?.success) {
+        const items = (r?.data?.items || []).filter((it) => it.id && (it.note_card || it.model_type === 'note'));
+        return { feeds: items.map(normItem), success: true, msg: `[G-MATRIX] winner=${stg.tag}`, raw_error: undefined };
+      }
+      if (i < strategies.length - 1) await new Promise((res) => setTimeout(res, 1500)); // 避免连续请求互相污染风控判定
+    }
+    console.error('[G-MATRIX] all strategies failed');
+    return { feeds: [], success: false, msg: '[G-MATRIX] all strategies failed, see Netlify function logs', raw_error: lastR };
   }
   async function getFeedDetail(cookieStr, feedId, xsecToken, {
     xsecSource = 'pc_feed',
