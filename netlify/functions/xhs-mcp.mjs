@@ -113,11 +113,11 @@ const XHSLite = (() => {
   const XYW_ENV_FLAGS = '0|0|0|1|0|0|1|0|0|0|1|0|0|0|0|1|0|0|1';
   const SIGNATURE_DATA_TEMPLATE = { x0: '4.4.3', x1: 'xhs-pc-web', x2: 'Windows', x3: '', x4: '' }; // 2026-09-13 风控升级：版本号过期会被拒（xhshow issue #110 验证）
   const LEGACY_SIGNATURE_DATA_TEMPLATE = { x0: '4.3.5', x1: 'xhs-pc-web', x2: 'Windows', x3: '', x4: '' }; // A版原味：9-13风控升级前可用
-  const SIGNATURE_XSCOMMON_BUMPED = { ...SIGNATURE_XSCOMMON_TEMPLATE, x1: '4.4.3' }; // 与 x-s 4.4.3 对齐的 x-s-common 指纹
   const SIGNATURE_XSCOMMON_TEMPLATE = {
     s0: 5, s1: '', x0: '1', x1: '4.3.5', x2: 'Windows', x3: 'xhs-pc-web', x4: '4.86.0',
     x5: '', x6: '', x7: '', x8: '', x9: -596800761, x10: 0, x11: 'normal',
   };
+  const SIGNATURE_XSCOMMON_BUMPED = { ...SIGNATURE_XSCOMMON_TEMPLATE, x1: '4.4.3' }; // 与 x-s 4.4.3 对齐的 x-s-common 指纹
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0';
   const IMG_FORMATS = ['jpg', 'webp', 'avif'];
   const EDITH = 'https://edith.xiaohongshu.com', CREATOR = 'https://creator.xiaohongshu.com', WWW = 'https://www.xiaohongshu.com';
