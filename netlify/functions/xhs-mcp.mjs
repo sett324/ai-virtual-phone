@@ -1374,54 +1374,25 @@ const XHSLite = (() => {
       filters: [{ tags: [st], type: 'sort_type' }, { tags: ['不限'], type: 'filter_note_type' }, { tags: ['不限'], type: 'filter_note_time' }, { tags: ['不限'], type: 'filter_note_range' }, { tags: ['不限'], type: 'filter_pos_distance' }],
       geo: '', image_formats: IMG_FORMATS };
     const uri = '/api/sns/web/v1/search/notes';
-    // H版：矩阵前先跑基线探测，区分"cookie 失效"与"search 专属拦截"
+    // 正式版：单策略单请求（S1 = 默认签名模板 + x-rap-param，G 版矩阵实测唯一 winner），低频运行不叠加探测请求
+    const sig = await signHeaders('POST', uri, ck, { payload });
+    const xrapHeader = { 'x-rap-param': await xRapParam(`//${new URL(apiBase).host}${uri}`, payload) };
+    let r;
     try {
-      const baseline = await signedGet(apiBase, '/api/sns/web/v2/user/me', null, cookieStr, ck);
-      const meUid = baseline?.data?.user_id || baseline?.data?.userId || (baseline?.data && baseline.data.guest === false) ? 'OK' : 'FAIL';
-      const meUid2 = baseline?.data?.user_id || baseline?.data?.userId || '';
-      console.log(`[H-BASELINE] user/me -> http=${baseline?.http_status ?? 'N/A'} success=${!!baseline?.success} uid=${meUid2 || 'EMPTY'} logged_in=${baseline?.data ? (baseline.data.guest === false ? 'true' : 'unknown') : 'n/a'}`);
+      const resp = await fetch(apiBase + uri, { method: 'POST', headers: { ...baseHeaders(cookieStr, apiBase), ...sig, ...xrapHeader }, body: JSON.stringify(payload) });
+      r = await readJsonResponse(resp);
     } catch (e) {
-      console.log(`[H-BASELINE] user/me fetch_error: ${e?.message || e}`);
+      r = { success: false, msg: 'fetch_error: ' + (e?.message || String(e)) };
     }
-    try {
-      const hf = await signedPost(apiBase, '/api/sns/web/v1/homefeed', { category: 'homefeed_recommend', cursor_score: '', note_index: 0, refresh_type: 1, image_formats: IMG_FORMATS, need_filter_image: false }, cookieStr, ck);
-      console.log(`[H-BASELINE] homefeed -> http=${hf?.http_status ?? 'N/A'} success=${!!hf?.success} items=${(hf?.data?.items || []).length}`);
-    } catch (e) {
-      console.log(`[H-BASELINE] homefeed fetch_error: ${e?.message || e}`);
+    if (r?.http_status === 461) {
+      console.warn('[XHS-SEARCH] HTTP 461 - 会话疑似被风控降权，已单次返回不重试，请降低调用频率或更新 cookie');
+      return { feeds: [], success: false, msg: 'xhs 风控拦截(461)：cookie 可能被临时降权，请降低调用频率或更新 cookie 后重试', raw_error: r };
     }
-    // G版自诊断：一次调用遍历策略矩阵，首个成功短路；每次结果写入日志形成决策矩阵
-    const strategies = [
-      { tag: 'S1_x443+RAP(F版现状)', xs: null, xsc: null, useXrap: true },
-      { tag: 'S2_x443+noRAP', xs: null, xsc: null, useXrap: false },
-      { tag: 'S3_旧x435+noRAP(A版原味)', xs: 'legacy', xsc: null, useXrap: false },
-      { tag: 'S4_x443+xsc443+noRAP', xs: null, xsc: 'bumped', useXrap: false },
-    ];
-    let lastR = null;
-    for (let i = 0; i < strategies.length; i++) {
-      const stg = strategies[i];
-      const sig = await signHeaders('POST', uri, ck, {
-        payload,
-        xsTemplate: stg.xs === 'legacy' ? LEGACY_SIGNATURE_DATA_TEMPLATE : null,
-        xsCommonTemplate: stg.xsc === 'bumped' ? SIGNATURE_XSCOMMON_BUMPED : null,
-      });
-      const xrapHeader = stg.useXrap ? { 'x-rap-param': await xRapParam(`//${new URL(apiBase).host}${uri}`, payload) } : {};
-      let r = null;
-      try {
-        const resp = await fetch(apiBase + uri, { method: 'POST', headers: { ...baseHeaders(cookieStr, apiBase), ...sig, ...xrapHeader }, body: JSON.stringify(payload) });
-        r = await readJsonResponse(resp);
-      } catch (e) {
-        r = { success: false, msg: 'fetch_error: ' + (e?.message || String(e)) };
-      }
-      lastR = r;
-      console.log(`[G-MATRIX] ${stg.tag} -> http_status=${r?.http_status ?? 'N/A'} success=${!!r?.success} msg=${r?.msg ?? ''}`);
-      if (r?.success) {
-        const items = (r?.data?.items || []).filter((it) => it.id && (it.note_card || it.model_type === 'note'));
-        return { feeds: items.map(normItem), success: true, msg: `[G-MATRIX] winner=${stg.tag}`, raw_error: undefined };
-      }
-      if (i < strategies.length - 1) await new Promise((res) => setTimeout(res, 1500)); // 避免连续请求互相污染风控判定
+    if (r?.success) {
+      const items = (r?.data?.items || []).filter((it) => it.id && (it.note_card || it.model_type === 'note'));
+      return { feeds: items.map(normItem), success: true, msg: 'ok', raw_error: undefined };
     }
-    console.error('[G-MATRIX] all strategies failed');
-    return { feeds: [], success: false, msg: '[G-MATRIX] all strategies failed, see Netlify function logs', raw_error: lastR };
+    return { feeds: [], success: false, msg: r?.msg || 'search failed', raw_error: r };
   }
   async function getFeedDetail(cookieStr, feedId, xsecToken, {
     xsecSource = 'pc_feed',
