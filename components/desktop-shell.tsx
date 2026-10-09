@@ -32,6 +32,7 @@ import MapApp from "@/components/map/map-app";
 import { DwellingApp } from "@/components/dwelling/dwelling-app";
 import { MascotFloat } from "@/components/mascot/mascot-float";
 import { MascotPreviewHost } from "@/components/mascot/mascot-preview-host";
+import { CallLayer } from "@/components/chat/call-layer";
 import { useMusicControlsOptional } from "@/lib/music-context";
 import { PhoneResourcesApp, type ResourceSubPage } from "@/components/phone-resources-app";
 import { CheckPhoneApp } from "@/components/checkphone/checkphone-app";
@@ -1114,6 +1115,24 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   useEffect(() => {
     activeAppRef.current = activeApp;
   }, [activeApp]);
+
+  useEffect(() => {
+    const handleCallEnded = (e: Event) => {
+      const customEvt = e as CustomEvent<{ sessionId?: string }>;
+      const targetSessionId = customEvt.detail?.sessionId;
+      if (targetSessionId && activeAppRef.current === "chat") {
+        window.dispatchEvent(
+          new CustomEvent("chat-session-call-ended", {
+            detail: { sessionId: targetSessionId },
+          })
+        );
+      }
+    };
+    window.addEventListener("chat-call-ended", handleCallEnded);
+    return () => {
+      window.removeEventListener("chat-call-ended", handleCallEnded);
+    };
+  }, []);
   // Listen for theme CSS updates from 小卷
   useEffect(() => {
     const onThemeUpdate = () => {
@@ -4814,6 +4833,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
               <MascotFloat />
               {/* 预览弹窗宿主：独立于桌宠的展开/收起状态，否则桌宠收成小球时弹不出来 */}
               <MascotPreviewHost />
+      <CallLayer />
 
               {/* Widget Picker Bottom Sheet */}
               {showWidgetPicker && (
