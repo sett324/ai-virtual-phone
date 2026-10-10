@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, createContext, type CSSProperties, type ReactNode } from "react";
-import { Activity, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X, CloudUpload } from "lucide-react";
+import { Activity, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X, CloudUpload, PhoneCall } from "lucide-react";
 import { ConfirmDialog } from "./ui/modal";
 import { useAccount } from "@/lib/account-context";
 import { isSelfHostedModeEnabled } from "@/lib/self-hosting";
@@ -21,6 +21,7 @@ import { CloudServicesPage } from "./settings/cloud-services-setup";
 import { ToolboxSettings } from "./settings/toolbox-settings";
 import { ModerationCenter } from "./settings/moderation-center";
 import { AgentComputerSettings } from "./settings/agent-computer-settings";
+import { CallOverlaySettings } from "./settings/call-overlay-settings";
 import { fetchIsAdmin } from "@/lib/moderation-client";
 import { PageShell } from "./ui/page-shell";
 import { CardGrid, FeaturedCard, type CardItem, type FeaturedCardItem } from "./ui/card-grid";
@@ -56,6 +57,7 @@ type SubPage =
     | "weixin"
     | "toolbox"
     | "agentComputer"
+    | "callOverlay"
     | "moderation"
     | "about";
 
@@ -71,6 +73,7 @@ const SETTINGS_MENU = [
     { id: "cloud", icon: CloudUpload, label: "云服务部署", desc: "备份 / 微信 / 推送一站配置", iconColor: BINDING_ACCENTS.api , glass: "" },
     { id: "weixin", icon: MessageSquare, label: "微信接入", desc: "iLink Bot", iconColor: CONTENT_APP_ACCENTS.chat , glass: "weixin" },
     { id: "toolbox", icon: Wrench, label: "聊天工具箱", desc: "外部工具调用", iconColor: BINDING_ACCENTS.voice , glass: "toolbox" },
+    { id: "callOverlay", icon: PhoneCall, label: "通话与浮窗", desc: "原生悬浮窗与自动搭话", iconColor: CONTENT_APP_ACCENTS.chat , glass: "voice" },
     { id: "agentComputer", icon: Laptop, label: "角色电脑", desc: "云端小电脑（自部署）", iconColor: BINDING_ACCENTS.memory , glass: "agent-computer" },
     { id: "identity", icon: UserCircle, label: "用户身份", desc: "个人信息", iconColor: BINDING_ACCENTS.identity , glass: "identity" },
     { id: "about", icon: Info, label: "关于与声明", desc: "版本与协议", iconColor: BINDING_ACCENTS.memory , glass: "about" },
@@ -242,13 +245,13 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
     const handleFloatingDockChange = useCallback((next: boolean) => {
         setFloatingDockEnabled(next);
         saveChatAppSettings({ ...loadChatAppSettings(), floatingDockEnabled: next });
-        onNotice(next ? "已开启悬浮球贴边收拢" : "已关闭悬浮球贴边收拢");
+        onNotice(next ? "已开启悬浮球贴边收起" : "已关闭悬浮球贴边收起");
     }, [onNotice]);
 
     const handleKeepAliveChange = useCallback((next: boolean) => {
         setKeepAlive(next);
         saveKeepAlive(next);
-        // use-weixin-bridge 监听这个事件来起停保活（与微信 Bot 的启用状态无关）
+        // use-weixin-bridge 监听这个事件来起讫保活（与微信 Bot 的启用状态无关）
         window.dispatchEvent(new CustomEvent("weixin-config-changed"));
         onNotice(next ? "已开启后台保活" : "已关闭后台保活");
     }, [onNotice]);
@@ -320,6 +323,8 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                 return <WeixinSettings onOpenCloudServices={() => setCurrentPage("cloud")} />;
             case "toolbox":
                 return <ToolboxSettings />;
+            case "callOverlay":
+                return <CallOverlaySettings />;
             case "agentComputer":
                 return <AgentComputerSettings onNotice={onNotice} />;
             case "moderation":
@@ -421,7 +426,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                             </div>
                             <div className="mt-[10px]">
                                 <CardGrid
-                                    items={SETTINGS_MENU.filter(item => ["weixin", "toolbox"].includes(item.id)).map(makeCardItem)}
+                                    items={SETTINGS_MENU.filter(item => ["weixin", "toolbox", "callOverlay"].includes(item.id)).map(makeCardItem)}
                                 />
                             </div>
                             <div className="mt-[10px]">
@@ -436,7 +441,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                                 </span>
                                 <div className="card-featured-body">
                                     <div className="card-featured-label">真实时间感知</div>
-                                    <div className="card-featured-desc">控制全局历史事件流中是否注入时间戳</div>
+                                    <div className="card-featured-desc">接口全局历史事件流中是否注入时间戳</div>
                                 </div>
                                 <Toggle checked={timeAware} onChange={handleTimeAwareChange} className="settings-toggle-control" />
                             </div>
@@ -460,7 +465,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                                     </span>
                                     <div className="card-featured-body">
                                         <div className="card-featured-label">管理中心</div>
-                                        <div className="card-featured-desc">举报队列、应用审核与用户封禁</div>
+                                        <div className="card-featured-desc">举报队列、应用审核与用户屏蔽</div>
                                     </div>
                                     <ChevronRight size={18} className="settings-account-chevron" />
                                 </div>
@@ -532,7 +537,7 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                                                     <SlidersHorizontal size={20} strokeWidth={1.8} />
                                                 </span>
                                                 <span className="settings-tools-menu-copy">
-                                                    <span className="menu-label appearance-menu-item-label">贴边半透明收拢模式</span>
+                                                    <span className="menu-label appearance-menu-item-label">贴边半透明收起模式</span>
                                                 </span>
                                                 <span className="menu-right settings-tools-menu-toggle">
                                                     <Toggle checked={floatingDockEnabled} onChange={handleFloatingDockChange} className="settings-toggle-control" />
@@ -631,9 +636,9 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                 )}
 
                 {currentPage !== "main" && (
-                    // shrink-0：page-body 是 flex 容器，包裹层默认可压缩——内容超一屏时会被压到
+                    // shrink-0：page-body 是 flex 容器，包裹层默认可压缩——内容超出一屏时会被压缩到
                     // 恰好一屏高、卡片从中溢出，底部 padding 落不到内容末尾，最后一张卡贴死滚动边界
-                    //（iOS 底部工具栏/安全区一盖就"没放下又滚不动"）。尾部留白 = 原 pb-8 + 安全区。
+                    //（iOS 底部工具条/安全区一遮就"没放下又滑不动"）。尾部留白 = 原 pb-8 + 安全区。
                     <div className="block min-h-full shrink-0 p-4 box-border" style={{ paddingBottom: "calc(32px + env(safe-area-inset-bottom, 0px))" }}>
                         {renderSubPage()}
                     </div>
