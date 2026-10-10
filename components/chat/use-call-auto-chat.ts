@@ -6,7 +6,7 @@ import { subscribeShellOverlayEvents, ShellOverlayEventDetail } from "@/lib/shel
 
 export interface UseCallAutoChatParams {
   characterId?: string;
-  callState: "IDLE" | "LISTENING" | "PROCESSING" | "SPEAKING";
+  callState: string;
   onTriggerAutoChat: () => void | Promise<void>;
   enabledOverride?: boolean;
 }
@@ -23,19 +23,15 @@ export function useCallAutoChat({
   // 用 ref 维护即时状态，避免定时器闭包拿到过期数据
   const configRef = useRef<CallAutoChatConfig | null>(null);
   configRef.current = config;
-
   const callStateRef = useRef(callState);
   callStateRef.current = callState;
-
   const triggerRef = useRef(onTriggerAutoChat);
   triggerRef.current = onTriggerAutoChat;
-
   const sentCountRef = useRef(0);
   sentCountRef.current = sentCount;
 
   // 退避倍率（若角色无返回或触发失败则翻倍，上限 4×）
   const backoffMultiplierRef = useRef(1);
-
   // 倒计时与目标等待时间
   const targetSecRef = useRef<number>(20);
   const elapsedSecRef = useRef<number>(0);
@@ -95,7 +91,6 @@ export function useCallAutoChat({
     }
 
     elapsedSecRef.current += 1;
-
     if (elapsedSecRef.current >= targetSecRef.current) {
       elapsedSecRef.current = 0;
       // 触发搭话
@@ -117,7 +112,6 @@ export function useCallAutoChat({
     const timer = setInterval(() => {
       stepTick();
     }, 1000);
-
     return () => clearInterval(timer);
   }, [stepTick, resetTimerForNextTurn]);
 
@@ -129,7 +123,6 @@ export function useCallAutoChat({
         stepTick();
       }
     });
-
     return () => unsubscribe();
   }, [stepTick]);
 
