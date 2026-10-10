@@ -2,10 +2,7 @@
 
 import { memo, useState, useEffect, useCallback } from "react";
 import { CallAutoChatConfig, saveCallAutoChatConfig } from "@/lib/call-auto-chat";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Toggle } from "@/components/ui/form";
 
 export interface CallAutoChatControlProps {
   characterId?: string;
@@ -20,134 +17,138 @@ export const CallAutoChatControl = memo(function CallAutoChatControl({
   sentCount,
   onConfigUpdated,
 }: CallAutoChatControlProps) {
-  const [open, setOpen] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const [minSec, setMinSec] = useState(15);
-  const [maxSec, setMaxSec] = useState(35);
-  const [maxMessages, setMaxMessages] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [localEnabled, setLocalEnabled] = useState(false);
+  const [minSec, setMinSec] = useState("15");
+  const [maxSec, setMaxSec] = useState("30");
+  const [maxMsgs, setMaxMsgs] = useState("0");
 
   useEffect(() => {
     if (config) {
-      setEnabled(config.enabled);
-      setMinSec(config.minIntervalSec);
-      setMaxSec(config.maxIntervalSec);
-      setMaxMessages(config.maxMessages);
+      setLocalEnabled(config.enabled);
+      setMinSec(String(config.minIntervalSec));
+      setMaxSec(String(config.maxIntervalSec));
+      setMaxMsgs(String(config.maxMessages));
     }
   }, [config]);
 
-  const handleSave = useCallback(async () => {
-    await saveCallAutoChatConfig(
-      {
-        enabled,
-        minIntervalSec: Number(minSec),
-        maxIntervalSec: Number(maxSec),
-        maxMessages: Number(maxMessages),
-      },
-      characterId
-    );
+  const handleToggleEnabled = useCallback(
+    async (checked: boolean) => {
+      setLocalEnabled(checked);
+      if (config) {
+        await saveCallAutoChatConfig(characterId, {
+          ...config,
+          enabled: checked,
+        });
+        onConfigUpdated();
+      }
+    },
+    [characterId, config, onConfigUpdated]
+  );
+
+  const handleSaveParams = useCallback(async () => {
+    if (!config) return;
+    const min = Math.max(5, parseInt(minSec, 10) || 15);
+    const max = Math.max(min, parseInt(maxSec, 10) || 30);
+    const msgs = Math.max(0, parseInt(maxMsgs, 10) || 0);
+
+    await saveCallAutoChatConfig(characterId, {
+      ...config,
+      minIntervalSec: min,
+      maxIntervalSec: max,
+      maxMessages: msgs,
+    });
     onConfigUpdated();
-    setOpen(false);
-  }, [enabled, minSec, maxSec, maxMessages, characterId, onConfigUpdated]);
+    setIsOpen(false);
+  }, [characterId, config, minSec, maxSec, maxMsgs, onConfigUpdated]);
 
   return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`h-7 px-2 text-xs rounded-full border backdrop-blur-md transition-all ${
-          enabled
-            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
-            : "bg-black/30 text-white/70 border-white/20 hover:bg-black/40"
-        }`}
-        onClick={() => setOpen((prev) => !prev)}
-        title="自动搭话设置（挂着通话时角色主动开口）"
-      >
-        <span className="mr-1 text-[11px]">💬</span>
-        <span>{enabled ? `自动搭话 (${sentCount})` : "自动搭话"}</span>
-      </Button>
-
-      {open && (
-        <div
-          className="absolute bottom-9 left-0 w-64 p-3 rounded-2xl bg-slate-900/95 border border-white/20 text-white shadow-2xl backdrop-blur-xl z-50 flex flex-col gap-3 text-xs"
-          onClick={(e) => e.stopPropagation()}
-        >
+    <div className="fixed bottom-24 right-4 z-[110] flex flex-col items-end">
+      {/* 折叠配置小面板 */}
+      {isOpen && (
+        <div className="mb-2 p-3 w-64 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-white/10 text-white shadow-xl flex flex-col gap-3 text-xs">
           <div className="flex items-center justify-between pb-1 border-b border-white/10">
-            <span className="font-semibold text-white/90">通话自动搭话设置</span>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="auto-chat-switch" className="text-[11px] text-white/70">
-                {enabled ? "已开启" : "关闭"}
-              </Label>
-              <Switch
-                id="auto-chat-switch"
-                checked={enabled}
-                onCheckedChange={setEnabled}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-white/80 text-[11px]">最小间隔 (秒)</Label>
-              <Input
-                type="number"
-                min={5}
-                max={120}
-                className="w-20 h-7 text-xs bg-black/40 border-white/20 text-white text-center"
-                value={minSec}
-                onChange={(e) => setMinSec(Number(e.target.value))}
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-white/80 text-[11px]">最大间隔 (秒)</Label>
-              <Input
-                type="number"
-                min={minSec}
-                max={300}
-                className="w-20 h-7 text-xs bg-black/40 border-white/20 text-white text-center"
-                value={maxSec}
-                onChange={(e) => setMaxSec(Number(e.target.value))}
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-white/80 text-[11px]" title="0 表示不设上限">
-                单通上限 (0=不限)
-              </Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                className="w-20 h-7 text-xs bg-black/40 border-white/20 text-white text-center"
-                value={maxMessages}
-                onChange={(e) => setMaxMessages(Number(e.target.value))}
-              />
-            </div>
-          </div>
-
-          <div className="text-[10px] text-white/50 leading-relaxed">
-            静默随机等待后角色主动开口。你发言会立即打断并重置时钟；角色无话时会自动翻倍退避。
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-white/10">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[11px] text-white/60 hover:text-white"
-              onClick={() => setOpen(false)}
+            <span className="font-medium text-white/90">自动搭话设置</span>
+            <button
+              className="text-white/50 hover:text-white text-xs px-1"
+              onClick={() => setIsOpen(false)}
             >
-              取消
-            </Button>
-            <Button
-              size="sm"
-              className="h-6 px-3 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white rounded"
-              onClick={handleSave}
+              ✕
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-white/80">开启防冷场搭话</span>
+            <Toggle
+              checked={localEnabled}
+              onChange={handleToggleEnabled}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-white/70 text-[11px]">随机间隔区间 (秒)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                className="w-20 h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
+                value={minSec}
+                onChange={(e) => setMinSec(e.target.value)}
+                placeholder="最小"
+              />
+              <span className="text-white/50">~</span>
+              <input
+                type="number"
+                className="w-20 h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
+                value={maxSec}
+                onChange={(e) => setMaxSec(e.target.value)}
+                placeholder="最大"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-white/70">单通条数上限</span>
+              <span className="text-white/40">(0 为不限)</span>
+            </div>
+            <input
+              type="number"
+              className="w-full h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
+              value={maxMsgs}
+              onChange={(e) => setMaxMsgs(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[11px] text-white/50">
+            <span>本次已搭话: {sentCount} 次</span>
+            <button
+              className="h-6 px-2.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white"
+              onClick={handleSaveParams}
             >
               保存
-            </Button>
+            </button>
           </div>
         </div>
       )}
+
+      {/* 悬浮控制把手 / 按钮 */}
+      <button
+        type="button"
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border shadow-lg transition-all ${
+          localEnabled
+            ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-300"
+            : "bg-black/40 border-white/10 text-white/70 hover:text-white"
+        }`}
+        onClick={() => setIsOpen((prev) => !prev)}
+        title="点击设置自动搭话"
+      >
+        <span
+          className={`w-2 h-2 rounded-full ${
+            localEnabled ? "bg-emerald-400 animate-pulse" : "bg-white/40"
+          }`}
+        />
+        <span>{localEnabled ? `搭话中 (${sentCount})` : "搭话关"}</span>
+      </button>
     </div>
   );
 });
