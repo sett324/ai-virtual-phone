@@ -68,7 +68,7 @@ export const CallLayer = memo(function CallLayer() {
     return null;
   }
 
-  // 坑 13：最小化时如果是群聊或者未恢复状态，避免全屏透明遮罩拦截桌面点击
+  // 坑 13 & 坑 8：最小化时小窗本身已挂载/portal，外层遮罩避免拦截桌面点击
   if (activeCall.type === "voice") {
     if (!currentCharacter) return null;
     return (
@@ -120,7 +120,23 @@ export const CallLayer = memo(function CallLayer() {
   }
 
   if (activeCall.type === "group_voice" || activeCall.type === "group_video") {
-    // 群聊全屏呼叫
+    // 坑 8：群聊缩成小窗后若套外层全屏遮罩会挡住桌面。最小化时不套全屏容器
+    if (activeCall.minimized) {
+      return (
+        <GroupCallScreen
+          type={activeCall.type === "group_video" ? "video" : "voice"}
+          session={currentSession}
+          characters={groupCharacters}
+          initiator={activeCall.initiator}
+          initiatorName={activeCall.initiatorName}
+          minimized={activeCall.minimized}
+          onMinimize={handleMinimize}
+          onRestore={handleRestore}
+          onEnd={handleEnd}
+        />
+      );
+    }
+
     return (
       <div className="fixed inset-0 z-[120] flex flex-col">
         <GroupCallScreen
@@ -129,6 +145,9 @@ export const CallLayer = memo(function CallLayer() {
           characters={groupCharacters}
           initiator={activeCall.initiator}
           initiatorName={activeCall.initiatorName}
+          minimized={activeCall.minimized}
+          onMinimize={handleMinimize}
+          onRestore={handleRestore}
           onEnd={handleEnd}
         />
       </div>
