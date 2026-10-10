@@ -15,9 +15,6 @@ import {
   ShellOverlayDebugInfo,
 } from "@/lib/shell-call-overlay";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 
 export const CallOverlaySettings = memo(function CallOverlaySettings() {
   const [currentTheme, setCurrentTheme] = useState<CallOverlayTheme>(getStoredOverlayTheme);
@@ -65,21 +62,19 @@ export const CallOverlaySettings = memo(function CallOverlaySettings() {
   return (
     <div className="flex flex-col gap-6 p-4 max-w-2xl mx-auto">
       {/* 1. 原生壳与浮窗权限状态 */}
-      <Card className="border-white/10 bg-slate-900/60 backdrop-blur-md text-white">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium flex items-center justify-between">
-            <span>系统原生浮窗状态</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs border-white/20 text-white hover:bg-white/10"
-              onClick={checkStatus}
-            >
-              刷新检测
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 text-xs">
+      <div className="rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur-md p-4 text-white">
+        <div className="pb-3 flex items-center justify-between border-b border-white/10">
+          <span className="text-base font-medium">系统原生浮窗状态</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs border-white/20 text-white hover:bg-white/10"
+            onClick={checkStatus}
+          >
+            刷新检测
+          </Button>
+        </div>
+        <div className="pt-3 flex flex-col gap-3 text-xs">
           <div className="flex items-center justify-between py-1 border-b border-white/10">
             <span className="text-white/70">运行环境</span>
             <span className={hasShell ? "text-emerald-400 font-semibold" : "text-amber-400"}>
@@ -155,17 +150,17 @@ export const CallOverlaySettings = memo(function CallOverlaySettings() {
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* 2. 悬浮窗 / 回复条配色主题 */}
-      <Card className="border-white/10 bg-slate-900/60 backdrop-blur-md text-white">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-medium">悬浮回复条配色风格</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 text-xs">
+      <div className="rounded-2xl border border-white/10 bg-slate-900/60 backdrop-blur-md p-4 text-white">
+        <div className="pb-3 border-b border-white/10">
+          <span className="text-base font-medium">悬浮回复条配色风格</span>
+        </div>
+        <div className="pt-3 flex flex-col gap-4 text-xs">
           <div>
-            <Label className="text-white/70 mb-2 block">预设配色方案</Label>
+            <span className="text-white/70 mb-2 block">预设配色方案</span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {CALL_OVERLAY_PRESET_THEMES.map((preset) => {
                 const isSelected = currentTheme.id === preset.id;
@@ -194,44 +189,44 @@ export const CallOverlaySettings = memo(function CallOverlaySettings() {
           </div>
 
           <div className="pt-3 border-t border-white/10">
-            <Label className="text-white/70 mb-2 block">逐项色彩微调</Label>
+            <span className="text-white/70 mb-2 block">逐项色彩微调</span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-white/80">背景色 (bgColor)</span>
-                <Input
-                  className="w-36 h-7 text-xs bg-black/40 border-white/20 text-white"
+                <input
+                  className="w-36 h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
                   value={customTheme.bgColor}
                   onChange={(e) => handleCustomFieldChange("bgColor", e.target.value)}
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-white/80">主要文本 (textColor)</span>
-                <Input
-                  className="w-36 h-7 text-xs bg-black/40 border-white/20 text-white"
+                <input
+                  className="w-36 h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
                   value={customTheme.textColor}
                   onChange={(e) => handleCustomFieldChange("textColor", e.target.value)}
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-white/80">次要文本 (subTextColor)</span>
-                <Input
-                  className="w-36 h-7 text-xs bg-black/40 border-white/20 text-white"
+                <input
+                  className="w-36 h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
                   value={customTheme.subTextColor}
                   onChange={(e) => handleCustomFieldChange("subTextColor", e.target.value)}
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-white/80">强调强调色 (accentColor)</span>
-                <Input
-                  className="w-36 h-7 text-xs bg-black/40 border-white/20 text-white"
+                <input
+                  className="w-36 h-7 px-2 text-xs rounded-md bg-black/40 border border-white/20 text-white"
                   value={customTheme.accentColor}
                   onChange={(e) => handleCustomFieldChange("accentColor", e.target.value)}
                 />
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 });
