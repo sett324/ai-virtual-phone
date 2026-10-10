@@ -21,6 +21,8 @@ import { CallVolumeControl } from "./call-volume-control";
 import { CallMiniWindow } from "./call-mini-window";
 import { useCallReplyQueue } from "./use-call-reply-queue";
 import { useShellCallOverlay } from "./use-shell-call-overlay";
+import { useCallAutoChat } from "./use-call-auto-chat";
+import { CallAutoChatControl } from "./call-auto-chat-control";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
 
 // ── Types ───────────────────────────────────────────
@@ -420,6 +422,15 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
             setCallDuration(prev => Math.max(prev, sec));
         },
     });
+    const autoChat = useCallAutoChat({
+        characterId: session.id,
+        callState,
+        onTriggerAutoChat: () => {
+            if (callState === "IDLE") {
+                return runConversationTurn();
+            }
+        },
+    });
 
     const handleTextSubmit = useCallback(() => {
         const text = typedText.trim();
@@ -711,6 +722,22 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
         return (
             <div className="gcall-video-root voicecall-controls call-keyboard-shift" style={keyboardOffsetStyle}>
                 <CallVolumeControl />
+            {callState !== "ENDED" && (
+                <CallAutoChatControl
+                    characterId={session.id}
+                    config={autoChat.config}
+                    sentCount={autoChat.sentCount}
+                    onConfigUpdated={autoChat.refreshConfig}
+                />
+            )}
+                {callState !== "ENDED" && (
+                    <CallAutoChatControl
+                        characterId={session.id}
+                        config={autoChat.config}
+                        sentCount={autoChat.sentCount}
+                        onConfigUpdated={autoChat.refreshConfig}
+                    />
+                )}
 
                 {onMinimize && callState !== "ENDED" && (
                     <button
@@ -825,6 +852,14 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
             <div className="call-overlay" {...(voiceBgResolved ? { "data-has-image": "" } : {})} />
 
             <CallVolumeControl />
+            {callState !== "ENDED" && (
+                <CallAutoChatControl
+                    characterId={session.id}
+                    config={autoChat.config}
+                    sentCount={autoChat.sentCount}
+                    onConfigUpdated={autoChat.refreshConfig}
+                />
+            )}
 
             {onMinimize && callState !== "ENDED" && (
                 <button
