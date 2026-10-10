@@ -24,6 +24,8 @@ import { CallVolumeControl } from "./call-volume-control";
 import { CallMiniWindow } from "./call-mini-window";
 import { useCallReplyQueue } from "./use-call-reply-queue";
 import { useShellCallOverlay } from "./use-shell-call-overlay";
+import { useCallAutoChat } from "./use-call-auto-chat";
+import { CallAutoChatControl } from "./call-auto-chat-control";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
 
 // ── Types ───────────────────────────────────────────
@@ -582,6 +584,15 @@ export function VoiceCallScreen({ session, character, onEnd, onConnect, initiato
             setCallDuration(prev => Math.max(prev, sec));
         },
     });
+    const autoChat = useCallAutoChat({
+        characterId: character.id,
+        callState,
+        onTriggerAutoChat: () => {
+            if (callState === "IDLE") {
+                return runConversationTurn();
+            }
+        },
+    });
 
     const handleTextSubmit = useCallback(() => {
         const text = typedText.trim();
@@ -690,6 +701,14 @@ export function VoiceCallScreen({ session, character, onEnd, onConnect, initiato
             />
 
             <CallVolumeControl />
+            {callState !== "ENDED" && (
+                <CallAutoChatControl
+                    characterId={character.id}
+                    config={autoChat.config}
+                    sentCount={autoChat.sentCount}
+                    onConfigUpdated={autoChat.refreshConfig}
+                />
+            )}
 
             {onMinimize && callState !== "ENDED" && (
                 <button
