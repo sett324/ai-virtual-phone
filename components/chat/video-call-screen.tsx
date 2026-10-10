@@ -21,6 +21,9 @@ import { useCallKeyboardOffsetStyle } from "./use-call-keyboard-offset";
 import { CallSttWarningDialog, hideCallSttWarningPermanently, isCallSttWarningHidden } from "./call-stt-warning-dialog";
 import { isAndroidBrowser, isIOSDevice } from "./voice-input-platform";
 import { CallVolumeControl } from "./call-volume-control";
+import { CallMiniWindow } from "./call-mini-window";
+import { useCallReplyQueue } from "./use-call-reply-queue";
+import { useShellCallOverlay } from "./use-shell-call-overlay";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
 
 // ── Types ───────────────────────────────────────────
@@ -287,15 +290,8 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
         if (callState === "CONNECTING" || callState === "ENDED") return;
         if (!callStartRef.current) callStartRef.current = Date.now();
 
-        // 缩小为悬浮窗：冻结计时显示，不再推进
-        if (minimized) {
-            if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-            if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
-            return;
-        }
-        // 从悬浮窗恢复：把冻结期间流逝的时间补回起点，避免时长跳变
+        // 恢复悬浮窗时清除 paused 标记
         if (pausedAtRef.current !== null) {
-            callStartRef.current += Date.now() - pausedAtRef.current;
             pausedAtRef.current = null;
         }
 
@@ -560,13 +556,47 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
         }
     }, [androidTextInputOnly, inputMode]);
 
+    const replyQueue = useCallReplyQueue({
+        callState,
+        onSend: (text) => {
+            if (sttRef.current) { sttRef.current.abort(); sttRef.current = null; }
+            return runConversationTurn(text);
+        },
+    });
+
+    useShellCallOverlay({
+        callId: session.id,
+        name: character.name,
+        avatar: character.avatar,
+        meta: "视频通话",
+        elapsedSeconds: callDuration,
+        callState,
+        onRestore,
+        onHangup: () => handleHangup(),
+        onReply: (text) => {
+            if (callState === "IDLE") {
+                void runConversationTurn(text);
+            } else {
+                replyQueue.enqueue(text);
+            }
+        },
+        onTick: (sec) => {
+            setCallDuration(prev => Math.max(prev, sec));
+        },
+    });
+
     const handleTextSubmit = useCallback(() => {
         const text = typedText.trim();
-        if (!text || callState !== "IDLE") return;
+        if (!text) return;
+        if (callState !== "IDLE") {
+            const accepted = replyQueue.enqueue(text);
+            if (accepted) setTypedText("");
+            return;
+        }
         if (sttRef.current) { sttRef.current.abort(); sttRef.current = null; }
         setTypedText("");
         runConversationTurn(text);
-    }, [typedText, callState, runConversationTurn]);
+    }, [typedText, callState, runConversationTurn, replyQueue]);
 
     // 输入框左侧的"重回"键：不发送新内容，直接让对方基于当前上下文重新回复一次
     const handleRegenerate = useCallback(() => {
@@ -628,17 +658,15 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
 
     if (minimized) {
         return (
-            <button
-                type="button"
-                className="call-mini-window"
-                style={{ backgroundImage: `url(${bgImageResolved || character.avatar || ""})` }}
-                onClick={onRestore}
-                aria-label={`返回与${character.name}的视频通话`}
-                title="点击返回通话"
-            >
-                <span className="call-mini-window-overlay" />
-                <span className="call-mini-window-name">{character.name}</span>
-            </button>
+            <CallMiniWindow
+                name={character.name}
+                avatar={character.avatar}
+                bgImage={bgImageResolved}
+                onRestore={onRestore ?? (() => {})}
+                queueCount={replyQueue.queueCount}
+                durationText={formatTime(callDuration)}
+                callStateText={callState === "AI_SPEAKING" ? "对方说话中" : callState === "PROCESSING" ? "思考中..." : "视频通话中"}
+            />
         );
     }
 
